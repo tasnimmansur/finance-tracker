@@ -1,24 +1,58 @@
-class Stock < ApplicationRecord
+# Model for stock, with several class functions
+class Stock < ActiveRecord::Base
+  has_many :user_stocks
+  has_many :users, through: :user_stocks
 
-  def self.find_by_ticker(ticker_symbol)
-    where(ticker: ticker_symbol).first
-  end
+  class << self
+    def new_from_lookup(ticker)
+      looked_up = StockTicker.new(ticker)
 
-  def self.new_from_lookup(ticker_symbol)
-    looked_up_stock = StockQuote::Stock.quote(ticker_symbol)
-    return nil unless looked_up_stock.name
+      name = looked_up.name
 
-    new_stock = new(ticker: looked_up_stock.symbol, name: looked_up_stock.name)
-    new_stock.last_price = new_stock.price
-    new_stock
+      return nil unless name
+
+      new_stock = new(ticker: looked_up.symbol, name: name)
+      new_stock.last_price = new_stock.price
+      new_stock
+    end
+
+    def find_by_ticker(ticker)
+      where(ticker: ticker).first
+    end
   end
 
   def price
-    closing_price = StockQuote::Stock.quote(ticker).close
-    return "#{closing_price} (Closing)" if closing_price
+    StockTicker.new(ticker).price
+  end
+end
 
-    opening_price = StockQuote::Stock.quote(ticker).open
-    return "#{opening_price} (Opening)" if opening_price
+# Shim for stock_quote gem
+class StockTicker
+  attr_reader :symbol
+
+  def initialize(symbol)
+    @symbol = symbol
+    @ticker = StockQuote::Stock.quote(symbol)
+  end
+
+  def price
+    return "#{closing} (Closing)" if closing
+    return "#{opening} (Opening)" if opening
+
     'Unavailable'
+  end
+
+  def name
+    @ticker.name
+  end
+
+  private
+
+  def closing
+    @ticker.close
+  end
+
+  def opening
+    @ticker.open
   end
 end
